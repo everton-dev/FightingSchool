@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FightFlow.Api/FightFlow.Api.csproj" />
+    <Project Path="src/FightFlow.Application/FightFlow.Application.csproj" />
+    <Project Path="src/FightFlow.Domain/FightFlow.Domain.csproj" />
+    <Project Path="src/FightFlow.Infrastructure/FightFlow.Infrastructure.csproj" />
+  </Folder>
+</Solution>

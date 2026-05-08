@@ -1,0 +1,6 @@
+@FightFlow.Api_HostAddress = http://localhost:5152
+
+GET {{FightFlow.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
