@@ -1,0 +1,73 @@
+@import '@angular/material/prebuilt-themes/rose-red.css';
+
+:root {
+  color-scheme: dark;
+  --brand-primary: #e61919;
+  --brand-primary-strong: #b31212;
+  --brand-primary-soft: rgba(230, 25, 25, 0.1);
+  --bg: #0a0a0a;
+  --bg-elevated: #111111;
+  --surface: #1e1e1e;
+  --surface-soft: #222222;
+  --surface-strong: #262626;
+  --ink: #ffffff;
+  --muted: #a0a0a0;
+  --line: #2d2d2d;
+  --danger: var(--brand-primary);
+  --danger-soft: rgba(230, 25, 25, 0.16);
+  --success: #2ecc71;
+  --success-soft: rgba(46, 204, 113, 0.16);
+  --warning: #f1c40f;
+  --warning-soft: rgba(241, 196, 15, 0.16);
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --mat-sys-primary: var(--brand-primary);
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-background: var(--bg);
+  --mat-sys-surface: var(--surface);
+  --mat-sys-on-surface: var(--ink);
+  --mat-sys-outline: var(--line);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(230, 25, 25, 0.12), transparent 28rem),
+    linear-gradient(180deg, var(--bg-elevated) 0%, var(--bg) 48%, #070707 100%);
+  font-family: Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.material-symbols-outlined,
+mat-icon {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
+.mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: var(--surface-strong);
+  --mdc-snackbar-supporting-text-color: var(--ink);
+  --mat-snack-bar-button-color: var(--brand-primary);
+}

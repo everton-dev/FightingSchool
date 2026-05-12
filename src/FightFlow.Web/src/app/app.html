@@ -1,0 +1,521 @@
+<mat-sidenav-container class="app-shell">
+  <mat-sidenav mode="side" opened class="sidebar">
+    <a class="brand" href="/" [attr.aria-label]="text().aria.dashboardLink">
+      <span class="brand-mark">
+        <mat-icon>sports_martial_arts</mat-icon>
+      </span>
+      <span>
+        <strong>FightFlow</strong>
+        <small>{{ dashboard()?.tenant?.slug ?? 'academy' }}</small>
+      </span>
+    </a>
+
+    <nav class="nav-list" [attr.aria-label]="text().aria.primaryNavigation">
+      <a class="nav-link active" href="#dashboard">
+        <mat-icon>dashboard</mat-icon>
+        <span>{{ text().nav.dashboard }}</span>
+      </a>
+      <a class="nav-link" href="#students">
+        <mat-icon>groups</mat-icon>
+        <span>{{ text().nav.students }}</span>
+      </a>
+      <a class="nav-link" href="#attendance">
+        <mat-icon>how_to_reg</mat-icon>
+        <span>{{ text().nav.attendance }}</span>
+      </a>
+      <a class="nav-link" href="#ranks">
+        <mat-icon>military_tech</mat-icon>
+        <span>{{ text().nav.ranks }}</span>
+      </a>
+      <a class="nav-link" href="#accounts">
+        <mat-icon>manage_accounts</mat-icon>
+        <span>{{ text().nav.accounts }}</span>
+      </a>
+      <a class="nav-link" href="#belts">
+        <mat-icon>workspace_premium</mat-icon>
+        <span>{{ text().nav.belts }}</span>
+      </a>
+      <a class="nav-link" href="#events">
+        <mat-icon>event</mat-icon>
+        <span>{{ text().nav.events }}</span>
+      </a>
+    </nav>
+  </mat-sidenav>
+
+  <mat-sidenav-content class="workspace">
+    <mat-toolbar class="topbar">
+      <div class="topbar-header">
+        <div class="title-block">
+          <p class="eyebrow">{{ text().header.eyebrow }}</p>
+          <h1>{{ dashboard()?.tenant?.name ?? 'FightFlow' }}</h1>
+        </div>
+
+        <div class="flag-selector" [attr.aria-label]="text().header.language">
+          @for (language of languageOptions; track language.code) {
+            <button
+              mat-icon-button
+              type="button"
+              class="flag-button"
+              [class.active]="locale() === language.code"
+              [attr.aria-label]="language.label"
+              [attr.title]="language.label"
+              (click)="setLocale(language.code)">
+              <span class="flag-icon" aria-hidden="true">{{ language.flag }}</span>
+            </button>
+          }
+        </div>
+      </div>
+
+      <form class="attendance-form" [formGroup]="attendanceForm" (ngSubmit)="recordAttendance()">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>{{ text().attendanceForm.student }}</mat-label>
+          <mat-select formControlName="studentId">
+            @for (student of dashboard()?.students ?? []; track student.id) {
+              @if (student.isActive) {
+                <mat-option [value]="student.id">{{ student.fullName }}</mat-option>
+              }
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>{{ text().attendanceForm.status }}</mat-label>
+          <mat-select formControlName="status">
+            <mat-option value="Present">{{ text().attendanceStatus.Present }}</mat-option>
+            <mat-option value="Absent">{{ text().attendanceStatus.Absent }}</mat-option>
+            <mat-option value="Excused">{{ text().attendanceStatus.Excused }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="notes-field">
+          <mat-label>{{ text().attendanceForm.technicalNotes }}</mat-label>
+          <input matInput formControlName="technicalNotes" maxlength="500">
+        </mat-form-field>
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="isSaving()">
+          <mat-icon>add_task</mat-icon>
+          {{ text().actions.record }}
+        </button>
+      </form>
+    </mat-toolbar>
+
+    @if (isLoading()) {
+      <div class="loading-panel">
+        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+      </div>
+    } @else if (dashboard(); as data) {
+      <section class="dashboard-showcase" id="dashboard" [attr.aria-label]="text().aria.schoolMetrics">
+        <mat-card appearance="outlined" class="dashboard-hero">
+          <div class="hero-copy">
+            <p class="eyebrow">{{ text().dashboard.eyebrow }}</p>
+            <h2>{{ text().dashboard.title }}</h2>
+            <p>{{ text().dashboard.subtitle }}</p>
+          </div>
+
+          <div class="hero-score" aria-live="polite">
+            <span>{{ text().dashboard.attendanceRate }}</span>
+            <strong>{{ data.metrics.sevenDayAttendanceRate | number: '1.0-1' }}%</strong>
+            <mat-progress-bar mode="determinate" [value]="data.metrics.sevenDayAttendanceRate"></mat-progress-bar>
+          </div>
+
+          <div class="hero-details">
+            <div>
+              <span>{{ text().dashboard.clearAccounts }}</span>
+              <strong>{{ data.metrics.activeStudents - data.metrics.overduePayments }}/{{ data.metrics.activeStudents }}</strong>
+            </div>
+            <div>
+              <span>{{ text().dashboard.reviewQueue }}</span>
+              <strong>{{ data.metrics.promotionsReady }}</strong>
+            </div>
+          </div>
+        </mat-card>
+
+        <div class="metric-grid">
+          <mat-card appearance="outlined" class="metric-panel success">
+            <span class="metric-icon"><mat-icon>groups</mat-icon></span>
+            <span>{{ text().metrics.activeStudents }}</span>
+            <strong>{{ data.metrics.activeStudents }}</strong>
+            <small>{{ text().dashboard.activeRoster }}</small>
+          </mat-card>
+          <mat-card appearance="outlined" class="metric-panel action">
+            <span class="metric-icon"><mat-icon>event_available</mat-icon></span>
+            <span>{{ text().metrics.presentToday }}</span>
+            <strong>{{ data.metrics.attendanceToday }}</strong>
+            <small>{{ text().dashboard.todaySession }}</small>
+          </mat-card>
+          <mat-card appearance="outlined" class="metric-panel error">
+            <span class="metric-icon"><mat-icon>payments</mat-icon></span>
+            <span>{{ text().metrics.overduePayments }}</span>
+            <strong>{{ data.metrics.overduePayments }}</strong>
+            <small>{{ text().dashboard.needsAttention }}</small>
+          </mat-card>
+          <mat-card appearance="outlined" class="metric-panel warning">
+            <span class="metric-icon"><mat-icon>military_tech</mat-icon></span>
+            <span>{{ text().metrics.promotionReady }}</span>
+            <strong>{{ data.metrics.promotionsReady }}</strong>
+            <small>{{ text().dashboard.readyForReview }}</small>
+          </mat-card>
+        </div>
+      </section>
+
+      <section class="feature-grid">
+        <section class="panel compact-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">{{ text().management.birthdaysEyebrow }}</p>
+              <h2>{{ text().management.birthdaysTitle }}</h2>
+            </div>
+          </div>
+          <div class="compact-list">
+            @for (birthday of data.birthdaysThisMonth; track birthday.studentId) {
+              <article class="compact-item">
+                <span class="compact-icon"><mat-icon>cake</mat-icon></span>
+                <div>
+                  <strong>{{ birthday.fullName }}</strong>
+                  <span>{{ formatDate(birthday.birthDate) }} · {{ text().students.yearsOld.replace('{age}', birthday.age.toString()) }}</span>
+                </div>
+              </article>
+            } @empty {
+              <p class="empty-state">{{ text().management.noBirthdays }}</p>
+            }
+          </div>
+        </section>
+
+        <section class="panel compact-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">{{ text().management.upcoming }}</p>
+              <h2>{{ text().management.academyEvents }}</h2>
+            </div>
+          </div>
+          <div class="compact-list">
+            @for (event of data.events.slice(0, 3); track event.id) {
+              <article class="compact-item">
+                <span class="compact-icon"><mat-icon>event</mat-icon></span>
+                <div>
+                  <strong>{{ event.title }}</strong>
+                  <span>{{ formatDate(event.startsAt) }} · {{ eventLocation(event.location) }}</span>
+                </div>
+              </article>
+            } @empty {
+              <p class="empty-state">{{ text().management.noEvents }}</p>
+            }
+          </div>
+        </section>
+      </section>
+
+      <section class="split-layout" [attr.aria-label]="text().aria.overview">
+        <section class="panel" id="attendance">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">{{ text().attendance.lastSevenDays }}</p>
+              <h2>{{ text().attendance.flow }}</h2>
+            </div>
+            <mat-chip>{{ data.metrics.sevenDayAttendanceRate | number: '1.0-1' }}% {{ text().attendance.flowSuffix }}</mat-chip>
+          </div>
+
+          <div class="trend-chart" [attr.aria-label]="text().aria.trend">
+            @for (item of data.attendanceTrend; track item.label) {
+              <div class="trend-bar">
+                <span class="trend-fill" [style.height.%]="trendHeight(item.presentCount)"></span>
+                <strong>{{ item.presentCount }}</strong>
+                <span>{{ item.label }}</span>
+              </div>
+            }
+          </div>
+        </section>
+
+        <section class="panel rank-panel" id="ranks">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">{{ text().ranksSection.label }}</p>
+              <h2>{{ text().ranksSection.progression }}</h2>
+            </div>
+          </div>
+
+          <div class="rank-list">
+            @for (rank of data.ranks; track rank.id) {
+              <article class="rank-item">
+                <div class="rank-line">
+                  <div class="rank-name">
+                    <span class="belt" [style.background]="rank.beltColor"></span>
+                    <span>{{ formatRankName(rank.name) }}</span>
+                  </div>
+                  <strong>{{ rank.studentCount }}</strong>
+                </div>
+                <div class="rank-meta">{{ text().ranksSection.required.replace('{count}', rank.requiredAttendanceCount.toString()) }}</div>
+              </article>
+            }
+          </div>
+        </section>
+      </section>
+
+      <section class="panel student-panel" id="students">
+        <div class="panel-heading table-heading">
+          <div>
+            <p class="eyebrow">{{ text().students.members }}</p>
+            <h2>{{ text().students.roster }}</h2>
+          </div>
+          <div class="filter-tabs" [attr.aria-label]="text().aria.filters">
+            <button mat-button type="button" [class.active]="activeFilter() === 'all'" (click)="setFilter('all')">{{ text().students.filters.all }}</button>
+            <button mat-button type="button" [class.active]="activeFilter() === 'ready'" (click)="setFilter('ready')">{{ text().students.filters.ready }}</button>
+            <button mat-button type="button" [class.active]="activeFilter() === 'overdue'" (click)="setFilter('overdue')">{{ text().students.filters.overdue }}</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table mat-table [dataSource]="visibleStudents()" class="student-table">
+            <ng-container matColumnDef="student">
+              <th mat-header-cell *matHeaderCellDef>{{ text().students.table.student }}</th>
+              <td mat-cell *matCellDef="let student">
+                <div class="student-id">
+                  <span class="avatar">{{ student.initials }}</span>
+                  <span class="student-name">
+                    <strong>{{ student.fullName }}</strong>
+                    <span>
+                      {{ text().students.yearsOld.replace('{age}', student.age.toString()) }}
+                      ·
+                      {{ text().students.enrolled.replace('{date}', formatDate(student.enrollmentDate)) }}
+                    </span>
+                  </span>
+                </div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="rank">
+              <th mat-header-cell *matHeaderCellDef>{{ text().students.table.rank }}</th>
+              <td mat-cell *matCellDef="let student">
+                <span class="rank-badge">
+                  <span class="belt" [style.background]="student.beltColor"></span>
+                  {{ formatRankName(student.currentRankName) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="progress">
+              <th mat-header-cell *matHeaderCellDef>{{ text().students.table.progress }}</th>
+              <td mat-cell *matCellDef="let student">
+                <div class="progress-cell">
+                  <div class="progress-meta">
+                    <span>{{ progressText(student) }}</span>
+                    <span>{{ progressValue(student) | number: '1.0-0' }}%</span>
+                  </div>
+                  <mat-progress-bar
+                    mode="determinate"
+                    [value]="progressValue(student)"
+                    [style.--rank-color]="rankColor(student.currentRankName)">
+                  </mat-progress-bar>
+                </div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="finance">
+              <th mat-header-cell *matHeaderCellDef>{{ text().students.table.finance }}</th>
+              <td mat-cell *matCellDef="let student">
+                <mat-chip [class.current]="student.financialStatus === 'Current'" [class.overdue]="student.financialStatus === 'Overdue'">
+                  {{ formatFinancialStatus(student.financialStatus) }}
+                </mat-chip>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>{{ text().students.table.actions }}</th>
+              <td mat-cell *matCellDef="let student">
+                <div class="student-actions">
+                  <button
+                    mat-button
+                    class="status-action-badge"
+                    type="button"
+                    (click)="updateFinancialStatus(student)">
+                    {{ financeActionLabel(student) }}
+                  </button>
+                  <button mat-flat-button color="primary" type="button" [disabled]="!student.isPromotionReady" (click)="promoteStudent(student)">
+                    <mat-icon>upgrade</mat-icon>
+                    {{ text().actions.promote }}
+                  </button>
+                </div>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          </table>
+        </div>
+      </section>
+
+      <section class="management-grid">
+        <section class="panel management-panel" id="accounts">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">{{ text().management.registration }}</p>
+              <h2>{{ text().management.accounts }}</h2>
+            </div>
+          </div>
+
+          <form class="management-form" [formGroup]="userForm" (ngSubmit)="saveUser()">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ text().management.fullName }}</mat-label>
+              <input matInput formControlName="fullName">
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ text().management.email }}</mat-label>
+              <input matInput type="email" formControlName="email">
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ text().management.role }}</mat-label>
+              <mat-select formControlName="role">
+                @for (role of accountRoles; track role) {
+                  <mat-option [value]="role">{{ roleLabel(role) }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <div class="form-actions">
+              <button mat-flat-button color="primary" type="submit">{{ editingUserId() ? text().management.update : text().management.create }}</button>
+              <button mat-button type="button" (click)="resetUserForm()">{{ text().management.clear }}</button>
+            </div>
+          </form>
+
+          <div class="entity-list">
+            @for (user of data.users; track user.id) {
+              <article class="entity-item" [class.inactive]="!user.isActive">
+                <div>
+                  <strong>{{ user.fullName }}</strong>
+                  <span>{{ user.email }} · {{ roleLabel(user.role) }}</span>
+                </div>
+                <div class="entity-actions">
+                  <mat-chip [class.current]="user.isActive" [class.overdue]="!user.isActive">{{ activeStatusLabel(user.isActive) }}</mat-chip>
+                  <button mat-button type="button" (click)="editUser(user)">{{ text().management.edit }}</button>
+                  <button mat-button type="button" (click)="setUserActive(user, !user.isActive)">{{ activeActionLabel(user.isActive) }}</button>
+                </div>
+              </article>
+            }
+          </div>
+        </section>
+
+        <section class="panel management-panel" id="belts">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">{{ text().management.academySystem }}</p>
+              <h2>{{ text().management.belts }}</h2>
+            </div>
+          </div>
+
+          <form class="management-form belt-form" [formGroup]="beltForm" (ngSubmit)="saveBelt()">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ text().management.name }}</mat-label>
+              <input matInput formControlName="name">
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ text().management.order }}</mat-label>
+              <input matInput type="number" formControlName="sortOrder">
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>{{ text().management.requiredAttendance }}</mat-label>
+              <input matInput type="number" formControlName="requiredAttendanceCount">
+            </mat-form-field>
+            <label class="color-input">
+              <span>{{ text().management.color }}</span>
+              <input type="color" formControlName="beltColor">
+            </label>
+            <div class="form-actions">
+              <button mat-flat-button color="primary" type="submit">{{ editingBeltId() ? text().management.update : text().management.create }}</button>
+              <button mat-button type="button" (click)="resetBeltForm()">{{ text().management.clear }}</button>
+            </div>
+          </form>
+
+          <div class="entity-list">
+            @for (rank of data.ranks; track rank.id) {
+              <article class="entity-item">
+                <div class="rank-name">
+                  <span class="belt" [style.background]="rank.beltColor"></span>
+                  <div>
+                    <strong>{{ formatRankName(rank.name) }}</strong>
+                    <span>{{ creditsStudentsText(rank) }}</span>
+                  </div>
+                </div>
+                <div class="entity-actions">
+                  <button mat-button type="button" (click)="editBelt(rank)">{{ text().management.edit }}</button>
+                  <button mat-button type="button" (click)="deleteBelt(rank)">{{ text().management.delete }}</button>
+                </div>
+              </article>
+            }
+          </div>
+        </section>
+      </section>
+
+      <section class="panel management-panel" id="events">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">{{ text().management.calendar }}</p>
+            <h2>{{ text().management.academyEvents }}</h2>
+          </div>
+        </div>
+
+        <form class="management-form event-form" [formGroup]="eventForm" (ngSubmit)="saveEvent()">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ text().management.title }}</mat-label>
+            <input matInput formControlName="title">
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ text().management.date }}</mat-label>
+            <input matInput type="date" formControlName="startsAt">
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ text().management.location }}</mat-label>
+            <input matInput formControlName="location">
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ text().management.description }}</mat-label>
+            <input matInput formControlName="description">
+          </mat-form-field>
+          <div class="form-actions">
+            <button mat-flat-button color="primary" type="submit">{{ editingEventId() ? text().management.update : text().management.create }}</button>
+            <button mat-button type="button" (click)="resetEventForm()">{{ text().management.clear }}</button>
+          </div>
+        </form>
+
+        <div class="entity-list event-list">
+          @for (event of data.events; track event.id) {
+            <article class="entity-item">
+              <div>
+                <strong>{{ event.title }}</strong>
+                <span>{{ formatDate(event.startsAt) }} · {{ eventLocation(event.location) }}</span>
+                @if (event.description) {
+                  <small>{{ event.description }}</small>
+                }
+              </div>
+              <div class="entity-actions">
+                <button mat-button type="button" (click)="editEvent(event)">{{ text().management.edit }}</button>
+                <button mat-button type="button" (click)="deleteEvent(event)">{{ text().management.delete }}</button>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">{{ text().attendance.recentLog }}</p>
+            <h2>{{ text().attendance.history }}</h2>
+          </div>
+        </div>
+
+        <div class="activity-list">
+          @for (item of data.recentAttendance; track item.id) {
+            <article class="activity-item">
+              <div class="activity-line">
+                <strong>{{ item.studentName }}</strong>
+                <mat-chip>{{ formatAttendanceStatus(item.status) }}</mat-chip>
+              </div>
+              <div class="activity-meta">{{ item.professorName }} · {{ formatDateTime(item.occurredAtUtc) }}</div>
+              @if (item.technicalNotes) {
+                <div>{{ item.technicalNotes }}</div>
+              }
+            </article>
+          }
+        </div>
+      </section>
+    }
+  </mat-sidenav-content>
+</mat-sidenav-container>
