@@ -1,6 +1,10 @@
-<mat-sidenav-container class="app-shell">
-  <mat-sidenav mode="side" opened class="sidebar">
-    <a class="brand" href="/" [attr.aria-label]="text().aria.dashboardLink">
+<mat-sidenav-container class="app-shell" [hasBackdrop]="isMobileViewport()">
+  <mat-sidenav
+    class="sidebar"
+    [mode]="isMobileViewport() ? 'over' : 'side'"
+    [opened]="!isMobileViewport() || isMobileMenuOpen()"
+    (openedChange)="isMobileMenuOpen.set($event)">
+    <a class="brand" routerLink="/dashboard" [attr.aria-label]="text().aria.dashboardLink">
       <span class="brand-mark">
         <mat-icon>sports_martial_arts</mat-icon>
       </span>
@@ -11,31 +15,31 @@
     </a>
 
     <nav class="nav-list" [attr.aria-label]="text().aria.primaryNavigation">
-      <a class="nav-link active" href="#dashboard">
+      <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" (click)="closeMobileMenu()">
         <mat-icon>dashboard</mat-icon>
         <span>{{ text().nav.dashboard }}</span>
       </a>
-      <a class="nav-link" href="#students">
+      <a class="nav-link" routerLink="/students" routerLinkActive="active" (click)="closeMobileMenu()">
         <mat-icon>groups</mat-icon>
         <span>{{ text().nav.students }}</span>
       </a>
-      <a class="nav-link" href="#attendance">
+      <a class="nav-link" routerLink="/attendance" routerLinkActive="active" (click)="closeMobileMenu()">
         <mat-icon>how_to_reg</mat-icon>
         <span>{{ text().nav.attendance }}</span>
       </a>
-      <a class="nav-link" href="#ranks">
+      <a class="nav-link" routerLink="/ranks" routerLinkActive="active" (click)="closeMobileMenu()">
         <mat-icon>military_tech</mat-icon>
         <span>{{ text().nav.ranks }}</span>
       </a>
-      <a class="nav-link" href="#accounts">
+      <a class="nav-link" routerLink="/accounts" routerLinkActive="active" (click)="closeMobileMenu()">
         <mat-icon>manage_accounts</mat-icon>
         <span>{{ text().nav.accounts }}</span>
       </a>
-      <a class="nav-link" href="#belts">
+      <a class="nav-link" routerLink="/belts" routerLinkActive="active" (click)="closeMobileMenu()">
         <mat-icon>workspace_premium</mat-icon>
         <span>{{ text().nav.belts }}</span>
       </a>
-      <a class="nav-link" href="#events">
+      <a class="nav-link" routerLink="/events" routerLinkActive="active" (click)="closeMobileMenu()">
         <mat-icon>event</mat-icon>
         <span>{{ text().nav.events }}</span>
       </a>
@@ -45,13 +49,37 @@
   <mat-sidenav-content class="workspace">
     <mat-toolbar class="topbar">
       <div class="topbar-header">
+        @if (isMobileViewport()) {
+          <button
+            mat-icon-button
+            type="button"
+            class="menu-button"
+            [attr.aria-label]="isMobileMenuOpen() ? 'Close menu' : 'Open menu'"
+            (click)="toggleMobileMenu()">
+            <mat-icon>{{ isMobileMenuOpen() ? 'close' : 'menu' }}</mat-icon>
+          </button>
+        }
+
         <div class="title-block">
           <p class="eyebrow">{{ text().header.eyebrow }}</p>
           <h1>{{ dashboard()?.tenant?.name ?? 'FightFlow' }}</h1>
         </div>
 
-        <div class="flag-selector" [attr.aria-label]="text().header.language">
-          @for (language of languageOptions; track language.code) {
+        <div class="language-menu" [class.open]="isLanguageMenuOpen()" [attr.aria-label]="text().header.language">
+          <button
+            mat-icon-button
+            type="button"
+            class="language-trigger"
+            [attr.aria-label]="currentLanguage().label"
+            [attr.title]="currentLanguage().label"
+            [attr.aria-expanded]="isLanguageMenuOpen()"
+            (click)="toggleLanguageMenu()">
+            <span class="flag-icon" aria-hidden="true">{{ currentLanguage().flag }}</span>
+            <mat-icon>expand_more</mat-icon>
+          </button>
+
+          <div class="language-options">
+            @for (language of languageOptions; track language.code) {
             <button
               mat-icon-button
               type="button"
@@ -62,48 +90,21 @@
               (click)="setLocale(language.code)">
               <span class="flag-icon" aria-hidden="true">{{ language.flag }}</span>
             </button>
-          }
+            }
+          </div>
         </div>
       </div>
 
-      <form class="attendance-form" [formGroup]="attendanceForm" (ngSubmit)="recordAttendance()">
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>{{ text().attendanceForm.student }}</mat-label>
-          <mat-select formControlName="studentId">
-            @for (student of dashboard()?.students ?? []; track student.id) {
-              @if (student.isActive) {
-                <mat-option [value]="student.id">{{ student.fullName }}</mat-option>
-              }
-            }
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>{{ text().attendanceForm.status }}</mat-label>
-          <mat-select formControlName="status">
-            <mat-option value="Present">{{ text().attendanceStatus.Present }}</mat-option>
-            <mat-option value="Absent">{{ text().attendanceStatus.Absent }}</mat-option>
-            <mat-option value="Excused">{{ text().attendanceStatus.Excused }}</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="notes-field">
-          <mat-label>{{ text().attendanceForm.technicalNotes }}</mat-label>
-          <input matInput formControlName="technicalNotes" maxlength="500">
-        </mat-form-field>
-
-        <button mat-flat-button color="primary" type="submit" [disabled]="isSaving()">
-          <mat-icon>add_task</mat-icon>
-          {{ text().actions.record }}
-        </button>
-      </form>
     </mat-toolbar>
 
-    @if (isLoading()) {
+    <router-outlet />
+
+    @if (isLoading() || isRouteLoading()) {
       <div class="loading-panel">
         <mat-progress-bar mode="indeterminate"></mat-progress-bar>
       </div>
     } @else if (dashboard(); as data) {
+      @if (isScreen('dashboard')) {
       <section class="dashboard-showcase" id="dashboard" [attr.aria-label]="text().aria.schoolMetrics">
         <mat-card appearance="outlined" class="dashboard-hero">
           <div class="hero-copy">
@@ -196,6 +197,7 @@
                   <strong>{{ event.title }}</strong>
                   <span>{{ formatDate(event.startsAt) }} · {{ eventLocation(event.location) }}</span>
                 </div>
+                <app-icon-button icon="visibility" label="Details" (pressed)="viewEvent(event)" />
               </article>
             } @empty {
               <p class="empty-state">{{ text().management.noEvents }}</p>
@@ -203,7 +205,38 @@
           </div>
         </section>
       </section>
+      @if (eventModalMode() === 'view' && viewingEvent(); as event) {
+        <div class="modal-backdrop" role="presentation" (click)="resetEventForm()">
+          <section class="modal-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Details</p>
+                <h2>{{ event.title }}</h2>
+              </div>
+              <app-icon-button icon="close" [label]="text().actions.close" (pressed)="resetEventForm()" />
+            </div>
+            <div class="detail-list">
+              <div>
+                <strong>{{ text().management.date }}</strong>
+                <span>{{ formatDate(event.startsAt) }}</span>
+              </div>
+              <div>
+                <strong>{{ text().management.location }}</strong>
+                <span>{{ eventLocation(event.location) }}</span>
+              </div>
+              @if (event.description) {
+                <div>
+                  <strong>{{ text().management.description }}</strong>
+                  <span>{{ event.description }}</span>
+                </div>
+              }
+            </div>
+          </section>
+        </div>
+      }
+      }
 
+      @if (isScreen('attendance')) {
       <section class="split-layout" [attr.aria-label]="text().aria.overview">
         <section class="panel" id="attendance">
           <div class="panel-heading">
@@ -225,12 +258,40 @@
           </div>
         </section>
 
+        <section class="panel attendance-history-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">{{ text().attendance.recentLog }}</p>
+              <h2>{{ text().attendance.history }}</h2>
+            </div>
+          </div>
+
+          <div class="activity-list compact-history">
+            @for (item of data.recentAttendance; track item.id) {
+              <article class="activity-item">
+                <div class="activity-line">
+                  <strong>{{ item.studentName }}</strong>
+                  <mat-chip>{{ formatAttendanceStatus(item.status) }}</mat-chip>
+                </div>
+                <div class="activity-meta">{{ item.professorName }} · {{ formatDateTime(item.occurredAtUtc) }}</div>
+                @if (item.technicalNotes) {
+                  <div>{{ item.technicalNotes }}</div>
+                }
+              </article>
+            }
+          </div>
+        </section>
+      </section>
+      }
+
+      @if (isScreen('ranks')) {
         <section class="panel rank-panel" id="ranks">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">{{ text().ranksSection.label }}</p>
               <h2>{{ text().ranksSection.progression }}</h2>
             </div>
+            <app-icon-button icon="add" [label]="text().management.create" tone="primary" (pressed)="createBelt()" />
           </div>
 
           <div class="rank-list">
@@ -244,12 +305,18 @@
                   <strong>{{ rank.studentCount }}</strong>
                 </div>
                 <div class="rank-meta">{{ text().ranksSection.required.replace('{count}', rank.requiredAttendanceCount.toString()) }}</div>
+                <div class="entity-actions">
+                  <app-icon-button icon="edit" [label]="text().management.edit" (pressed)="editBelt(rank)" />
+                  <app-icon-button icon="visibility" label="Details" (pressed)="viewBelt(rank)" />
+                  <app-icon-button icon="delete" [label]="text().management.delete" (pressed)="deleteBelt(rank)" />
+                </div>
               </article>
             }
           </div>
         </section>
-      </section>
+      }
 
+      @if (isScreen('students')) {
       <section class="panel student-panel" id="students">
         <div class="panel-heading table-heading">
           <div>
@@ -322,17 +389,9 @@
               <th mat-header-cell *matHeaderCellDef>{{ text().students.table.actions }}</th>
               <td mat-cell *matCellDef="let student">
                 <div class="student-actions">
-                  <button
-                    mat-button
-                    class="status-action-badge"
-                    type="button"
-                    (click)="updateFinancialStatus(student)">
-                    {{ financeActionLabel(student) }}
-                  </button>
-                  <button mat-flat-button color="primary" type="button" [disabled]="!student.isPromotionReady" (click)="promoteStudent(student)">
-                    <mat-icon>upgrade</mat-icon>
-                    {{ text().actions.promote }}
-                  </button>
+                  <app-icon-button icon="event_available" [label]="text().actions.record" (pressed)="registerStudentAttendance(student)" />
+                  <app-icon-button icon="military_tech" [label]="text().actions.promote" [disabled]="!student.isPromotionReady" (pressed)="promoteStudent(student)" />
+                  <app-icon-button icon="person_remove" [label]="text().management.deactivate" (pressed)="deactivateStudent(student)" />
                 </div>
               </td>
             </ng-container>
@@ -342,86 +401,90 @@
           </table>
         </div>
       </section>
+      }
 
+      @if (isScreen('accounts') || isScreen('belts')) {
       <section class="management-grid">
+        @if (isScreen('accounts')) {
         <section class="panel management-panel" id="accounts">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">{{ text().management.registration }}</p>
               <h2>{{ text().management.accounts }}</h2>
             </div>
+            <app-icon-button icon="add" [label]="text().management.create" tone="primary" (pressed)="createUser()" />
           </div>
 
-          <form class="management-form" [formGroup]="userForm" (ngSubmit)="saveUser()">
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ text().management.fullName }}</mat-label>
-              <input matInput formControlName="fullName">
-            </mat-form-field>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ text().management.email }}</mat-label>
-              <input matInput type="email" formControlName="email">
-            </mat-form-field>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ text().management.role }}</mat-label>
-              <mat-select formControlName="role">
-                @for (role of accountRoles; track role) {
-                  <mat-option [value]="role">{{ roleLabel(role) }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-            <div class="form-actions">
-              <button mat-flat-button color="primary" type="submit">{{ editingUserId() ? text().management.update : text().management.create }}</button>
-              <button mat-button type="button" (click)="resetUserForm()">{{ text().management.clear }}</button>
-            </div>
-          </form>
-
           <div class="entity-list">
-            @for (user of data.users; track user.id) {
-              <article class="entity-item" [class.inactive]="!user.isActive">
+            @for (user of activeUsers(data.users); track user.id) {
+              <article class="entity-item">
                 <div>
                   <strong>{{ user.fullName }}</strong>
                   <span>{{ user.email }} · {{ roleLabel(user.role) }}</span>
                 </div>
                 <div class="entity-actions">
                   <mat-chip [class.current]="user.isActive" [class.overdue]="!user.isActive">{{ activeStatusLabel(user.isActive) }}</mat-chip>
-                  <button mat-button type="button" (click)="editUser(user)">{{ text().management.edit }}</button>
-                  <button mat-button type="button" (click)="setUserActive(user, !user.isActive)">{{ activeActionLabel(user.isActive) }}</button>
+                  <app-icon-button icon="edit" [label]="text().management.edit" (pressed)="editUser(user)" />
+                  <app-icon-button icon="visibility" label="Details" (pressed)="viewUser(user)" />
+                  <app-icon-button icon="power_settings_new" [label]="text().management.deactivate" (pressed)="setUserActive(user, false)" />
+                  <app-icon-button icon="key" label="Reset password" (pressed)="resetUserPassword(user)" />
                 </div>
               </article>
+            } @empty {
+              <p class="empty-state">No active logins found.</p>
             }
           </div>
-        </section>
 
+          @if (userModalMode(); as mode) {
+            <div class="modal-backdrop" role="presentation" (click)="resetUserForm()">
+              <section class="modal-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+                <div class="panel-heading">
+                  <div>
+                    <p class="eyebrow">{{ mode === 'view' ? 'Details' : text().management.registration }}</p>
+                    <h2>{{ modalTitle(mode, 'user') }}</h2>
+                  </div>
+                  <app-icon-button icon="close" [label]="text().actions.close" (pressed)="resetUserForm()" />
+                </div>
+
+                <form class="management-form" [formGroup]="userForm" (ngSubmit)="saveUser()">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>{{ text().management.fullName }}</mat-label>
+                    <input matInput formControlName="fullName">
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>{{ text().management.email }}</mat-label>
+                    <input matInput type="email" formControlName="email">
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>{{ text().management.role }}</mat-label>
+                    <mat-select formControlName="role">
+                      @for (role of accountRoles; track role) {
+                        <mat-option [value]="role">{{ roleLabel(role) }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  @if (mode !== 'view') {
+                    <div class="form-actions">
+                      <button mat-flat-button color="primary" type="submit" [disabled]="isSaving()">{{ editingUserId() ? text().management.update : text().management.create }}</button>
+                      <button mat-button type="button" (click)="resetUserForm()">{{ text().actions.close }}</button>
+                    </div>
+                  }
+                </form>
+              </section>
+            </div>
+          }
+        </section>
+        }
+
+        @if (isScreen('belts')) {
         <section class="panel management-panel" id="belts">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">{{ text().management.academySystem }}</p>
               <h2>{{ text().management.belts }}</h2>
             </div>
+            <app-icon-button icon="add" [label]="text().management.create" tone="primary" (pressed)="createBelt()" />
           </div>
-
-          <form class="management-form belt-form" [formGroup]="beltForm" (ngSubmit)="saveBelt()">
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ text().management.name }}</mat-label>
-              <input matInput formControlName="name">
-            </mat-form-field>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ text().management.order }}</mat-label>
-              <input matInput type="number" formControlName="sortOrder">
-            </mat-form-field>
-            <mat-form-field appearance="outline" subscriptSizing="dynamic">
-              <mat-label>{{ text().management.requiredAttendance }}</mat-label>
-              <input matInput type="number" formControlName="requiredAttendanceCount">
-            </mat-form-field>
-            <label class="color-input">
-              <span>{{ text().management.color }}</span>
-              <input type="color" formControlName="beltColor">
-            </label>
-            <div class="form-actions">
-              <button mat-flat-button color="primary" type="submit">{{ editingBeltId() ? text().management.update : text().management.create }}</button>
-              <button mat-button type="button" (click)="resetBeltForm()">{{ text().management.clear }}</button>
-            </div>
-          </form>
 
           <div class="entity-list">
             @for (rank of data.ranks; track rank.id) {
@@ -434,48 +497,31 @@
                   </div>
                 </div>
                 <div class="entity-actions">
-                  <button mat-button type="button" (click)="editBelt(rank)">{{ text().management.edit }}</button>
-                  <button mat-button type="button" (click)="deleteBelt(rank)">{{ text().management.delete }}</button>
+                  <app-icon-button icon="edit" [label]="text().management.edit" (pressed)="editBelt(rank)" />
+                  <app-icon-button icon="visibility" label="Details" (pressed)="viewBelt(rank)" />
+                  <app-icon-button icon="delete" [label]="text().management.delete" (pressed)="deleteBelt(rank)" />
                 </div>
               </article>
             }
           </div>
-        </section>
-      </section>
 
+        </section>
+        }
+      </section>
+      }
+
+      @if (isScreen('events')) {
       <section class="panel management-panel" id="events">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">{{ text().management.calendar }}</p>
             <h2>{{ text().management.academyEvents }}</h2>
           </div>
+          <app-icon-button icon="add" [label]="text().management.create" tone="primary" (pressed)="createEvent()" />
         </div>
 
-        <form class="management-form event-form" [formGroup]="eventForm" (ngSubmit)="saveEvent()">
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ text().management.title }}</mat-label>
-            <input matInput formControlName="title">
-          </mat-form-field>
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ text().management.date }}</mat-label>
-            <input matInput type="date" formControlName="startsAt">
-          </mat-form-field>
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ text().management.location }}</mat-label>
-            <input matInput formControlName="location">
-          </mat-form-field>
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ text().management.description }}</mat-label>
-            <input matInput formControlName="description">
-          </mat-form-field>
-          <div class="form-actions">
-            <button mat-flat-button color="primary" type="submit">{{ editingEventId() ? text().management.update : text().management.create }}</button>
-            <button mat-button type="button" (click)="resetEventForm()">{{ text().management.clear }}</button>
-          </div>
-        </form>
-
         <div class="entity-list event-list">
-          @for (event of data.events; track event.id) {
+          @for (event of activeEvents(data.events); track event.id) {
             <article class="entity-item">
               <div>
                 <strong>{{ event.title }}</strong>
@@ -485,37 +531,123 @@
                 }
               </div>
               <div class="entity-actions">
-                <button mat-button type="button" (click)="editEvent(event)">{{ text().management.edit }}</button>
-                <button mat-button type="button" (click)="deleteEvent(event)">{{ text().management.delete }}</button>
+                <app-icon-button icon="edit" [label]="text().management.edit" (pressed)="editEvent(event)" />
+                <app-icon-button icon="visibility" label="Details" (pressed)="viewEvent(event)" />
+                <app-icon-button icon="delete" [label]="text().management.delete" (pressed)="deleteEvent(event)" />
               </div>
             </article>
+          } @empty {
+            <p class="empty-state">{{ text().management.noEvents }}</p>
           }
         </div>
-      </section>
 
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">{{ text().attendance.recentLog }}</p>
-            <h2>{{ text().attendance.history }}</h2>
+        @if (eventModalMode(); as mode) {
+          <div class="modal-backdrop" role="presentation" (click)="resetEventForm()">
+            <section class="modal-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">{{ mode === 'view' ? 'Details' : text().management.calendar }}</p>
+                  <h2>{{ modalTitle(mode, 'event') }}</h2>
+                </div>
+                <app-icon-button icon="close" [label]="text().actions.close" (pressed)="resetEventForm()" />
+              </div>
+
+              <form class="management-form event-form" [formGroup]="eventForm" (ngSubmit)="saveEvent()">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ text().management.title }}</mat-label>
+                  <input matInput formControlName="title">
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ text().management.date }}</mat-label>
+                  <input matInput type="date" formControlName="startsAt">
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ text().management.location }}</mat-label>
+                  <input matInput formControlName="location">
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>{{ text().management.description }}</mat-label>
+                  <input matInput formControlName="description">
+                </mat-form-field>
+                @if (mode !== 'view') {
+                  <div class="form-actions">
+                    <button mat-flat-button color="primary" type="submit" [disabled]="isSaving()">{{ editingEventId() ? text().management.update : text().management.create }}</button>
+                    <button mat-button type="button" (click)="resetEventForm()">{{ text().actions.close }}</button>
+                  </div>
+                }
+              </form>
+            </section>
           </div>
-        </div>
-
-        <div class="activity-list">
-          @for (item of data.recentAttendance; track item.id) {
-            <article class="activity-item">
-              <div class="activity-line">
-                <strong>{{ item.studentName }}</strong>
-                <mat-chip>{{ formatAttendanceStatus(item.status) }}</mat-chip>
-              </div>
-              <div class="activity-meta">{{ item.professorName }} · {{ formatDateTime(item.occurredAtUtc) }}</div>
-              @if (item.technicalNotes) {
-                <div>{{ item.technicalNotes }}</div>
-              }
-            </article>
-          }
-        </div>
+        }
       </section>
+      }
+
     }
   </mat-sidenav-content>
 </mat-sidenav-container>
+
+@if (beltModalMode(); as mode) {
+  <div class="modal-backdrop" role="presentation" (click)="resetBeltForm()">
+    <section class="modal-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">{{ mode === 'view' ? 'Details' : text().management.academySystem }}</p>
+          <h2>{{ modalTitle(mode, 'belt') }}</h2>
+        </div>
+        <app-icon-button icon="close" [label]="text().actions.close" (pressed)="resetBeltForm()" />
+      </div>
+
+      <form class="management-form belt-form" [formGroup]="beltForm" (ngSubmit)="saveBelt()">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>{{ text().management.name }}</mat-label>
+          <input matInput formControlName="name">
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>{{ text().management.order }}</mat-label>
+          <input matInput type="number" formControlName="sortOrder">
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>{{ text().management.requiredAttendance }}</mat-label>
+          <input matInput type="number" formControlName="requiredAttendanceCount">
+        </mat-form-field>
+        <label class="color-input">
+          <span>{{ text().management.color }}</span>
+          <input type="color" formControlName="beltColor">
+        </label>
+        @if (mode !== 'view') {
+          <div class="form-actions">
+            <button mat-flat-button color="primary" type="submit" [disabled]="isSaving()">{{ editingBeltId() ? text().management.update : text().management.create }}</button>
+            <button mat-button type="button" (click)="resetBeltForm()">{{ text().actions.close }}</button>
+          </div>
+        }
+      </form>
+    </section>
+  </div>
+}
+
+@if (confirmation(); as confirm) {
+  <div class="modal-backdrop" role="presentation" (click)="closeConfirmation()">
+    <section class="modal-panel confirm-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Confirmation</p>
+          <h2>{{ confirm.title }}</h2>
+        </div>
+        <app-icon-button icon="close" [label]="text().actions.close" (pressed)="closeConfirmation()" />
+      </div>
+
+      <p class="confirm-message">{{ confirm.message }}</p>
+
+      <div class="form-actions">
+        <button mat-button type="button" (click)="closeConfirmation()">{{ text().actions.close }}</button>
+        <button mat-flat-button color="primary" type="button" (click)="confirmAction()">Confirm</button>
+      </div>
+    </section>
+  </div>
+}
+
+@if (isSaving() || isRouteLoading()) {
+  <div class="loading-overlay" role="status" aria-live="polite">
+    <div class="loading-gif" aria-hidden="true"></div>
+  </div>
+}

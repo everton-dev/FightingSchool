@@ -1,5 +1,5 @@
 import { CommonModule, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -13,6 +13,16 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import {
+  NavigationCancel,
+  NavigationEnd,
+  NavigationError,
+  NavigationStart,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet
+} from '@angular/router';
 import { finalize } from 'rxjs';
 
 import {
@@ -26,6 +36,7 @@ import {
   UserDashboardItem,
   UserRole
 } from './fight-flow-api';
+import { IconButtonComponent } from './shared/icon-button.component';
 
 @Component({
   selector: 'app-root',
@@ -44,7 +55,11 @@ import {
     MatSidenavModule,
     MatSnackBarModule,
     MatTableModule,
-    MatToolbarModule
+    MatToolbarModule,
+    RouterLink,
+    RouterLinkActive,
+    RouterOutlet,
+    IconButtonComponent
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss'
@@ -53,11 +68,17 @@ export class App {
   private readonly api = inject(FightFlowApi);
   private readonly formBuilder = inject(FormBuilder);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly router = inject(Router);
 
   protected readonly dashboard = signal<DashboardResponse | null>(null);
   protected readonly isLoading = signal(true);
   protected readonly isSaving = signal(false);
+  protected readonly isRouteLoading = signal(false);
+  protected readonly isMobileViewport = signal(false);
+  protected readonly isMobileMenuOpen = signal(false);
+  protected readonly isLanguageMenuOpen = signal(false);
   protected readonly activeFilter = signal<'all' | 'ready' | 'overdue'>('all');
+  protected readonly activeScreen = signal<AppScreen>('dashboard');
   protected readonly locale = signal<LocaleCode>('en-US');
   protected readonly text = computed(() => translations[this.locale()]);
   protected readonly displayedColumns = ['student', 'rank', 'progress', 'finance', 'actions'];
@@ -65,12 +86,22 @@ export class App {
   protected readonly editingUserId = signal<string | null>(null);
   protected readonly editingBeltId = signal<string | null>(null);
   protected readonly editingEventId = signal<string | null>(null);
+  protected readonly userModalMode = signal<CrudModalMode | null>(null);
+  protected readonly beltModalMode = signal<CrudModalMode | null>(null);
+  protected readonly eventModalMode = signal<CrudModalMode | null>(null);
+  protected readonly viewingUser = signal<UserDashboardItem | null>(null);
+  protected readonly viewingBelt = signal<RankDashboardItem | null>(null);
+  protected readonly viewingEvent = signal<AcademyEventDashboardItem | null>(null);
+  protected readonly confirmation = signal<ConfirmationRequest | null>(null);
   protected readonly languageOptions: ReadonlyArray<LanguageOption> = [
     { code: 'pt-BR', flag: '🇧🇷', label: 'Português BR' },
     { code: 'pt-PT', flag: '🇵🇹', label: 'Português PT' },
     { code: 'es-ES', flag: '🇪🇸', label: 'Español' },
     { code: 'en-US', flag: '🇺🇸', label: 'English' }
   ];
+  protected readonly currentLanguage = computed(() =>
+    this.languageOptions.find(language => language.code === this.locale()) ?? this.languageOptions[0]
+  );
 
   protected readonly attendanceForm = this.formBuilder.nonNullable.group({
     studentId: ['', Validators.required],
@@ -98,6 +129,26 @@ export class App {
     description: ['']
   });
 
+  public constructor() {
+    this.syncMobileViewport();
+
+    this.router.events.subscribe(event => {
+      if (event instanceof NavigationStart) {
+        this.isRouteLoading.set(true);
+      }
+
+      if (event instanceof NavigationEnd) {
+        this.setActiveScreenFromUrl(event.urlAfterRedirects);
+        this.closeMobileMenu();
+        this.loadDashboard();
+      }
+
+      if (event instanceof NavigationCancel || event instanceof NavigationError) {
+        this.isRouteLoading.set(false);
+      }
+    });
+  }
+
   protected readonly visibleStudents = computed(() => {
     const dashboard = this.dashboard();
     if (!dashboard) {
@@ -106,6 +157,10 @@ export class App {
 
     const filter = this.activeFilter();
     return dashboard.students.filter(student => {
+      if (!student.isActive) {
+        return false;
+      }
+
       if (filter === 'ready') {
         return student.isPromotionReady;
       }
@@ -125,11 +180,30 @@ export class App {
 
   public ngOnInit(): void {
     this.setLocaleValue(this.locale());
+    this.setActiveScreenFromUrl(this.router.url);
     this.loadDashboard();
+  }
+
+  @HostListener('window:resize')
+  protected onWindowResize(): void {
+    this.syncMobileViewport();
   }
 
   protected setLocale(locale: LocaleCode): void {
     this.setLocaleValue(locale);
+    this.isLanguageMenuOpen.set(false);
+  }
+
+  protected toggleMobileMenu(): void {
+    this.isMobileMenuOpen.update(isOpen => !isOpen);
+  }
+
+  protected closeMobileMenu(): void {
+    this.isMobileMenuOpen.set(false);
+  }
+
+  protected toggleLanguageMenu(): void {
+    this.isLanguageMenuOpen.update(isOpen => !isOpen);
   }
 
   protected recordAttendance(): void {
@@ -155,9 +229,33 @@ export class App {
     this.activeFilter.set(filter);
   }
 
+  protected isScreen(screen: AppScreen): boolean {
+    return this.activeScreen() === screen;
+  }
+
+  protected registerStudentAttendance(student: StudentDashboardItem): void {
+    this.isSaving.set(true);
+    this.api.captureAttendance({
+      studentId: student.id,
+      status: 'Present',
+      technicalNotes: ''
+    })
+      .pipe(finalize(() => this.isSaving.set(false)))
+      .subscribe({
+        next: dashboard => {
+          this.setDashboard(dashboard);
+          this.showMessage(this.text().messages.attendanceRecorded);
+        },
+        error: () => this.showMessage(this.text().messages.attendanceFailed)
+      });
+  }
+
   protected updateFinancialStatus(student: StudentDashboardItem): void {
     const status = student.financialStatus === 'Overdue' ? 'Current' : 'Overdue';
-    this.api.updateFinancialStatus(student.id, status).subscribe({
+    this.isSaving.set(true);
+    this.api.updateFinancialStatus(student.id, status)
+      .pipe(finalize(() => this.isSaving.set(false)))
+      .subscribe({
       next: dashboard => {
         this.setDashboard(dashboard);
         this.showMessage(this.text().messages.financeUpdated);
@@ -167,7 +265,18 @@ export class App {
   }
 
   protected promoteStudent(student: StudentDashboardItem): void {
-    this.api.promoteStudent(student.id).subscribe({
+    this.requestConfirmation(
+      'Promote student?',
+      `Are you sure you want to promote ${student.fullName}?`,
+      () => this.promoteStudentConfirmed(student)
+    );
+  }
+
+  private promoteStudentConfirmed(student: StudentDashboardItem): void {
+    this.isSaving.set(true);
+    this.api.promoteStudent(student.id)
+      .pipe(finalize(() => this.isSaving.set(false)))
+      .subscribe({
       next: dashboard => {
         this.setDashboard(dashboard);
         this.showMessage(this.text().messages.studentPromoted);
@@ -176,17 +285,62 @@ export class App {
     });
   }
 
+  protected deactivateStudent(student: StudentDashboardItem): void {
+    this.requestConfirmation(
+      'Inactivate student?',
+      `Are you sure you want to inactivate ${student.fullName}?`,
+      () => {
+        this.isSaving.set(true);
+        this.api.deactivateStudent(student.id)
+          .pipe(finalize(() => this.isSaving.set(false)))
+          .subscribe({
+            next: dashboard => {
+              this.setDashboard(dashboard);
+              this.showMessage('Student inactivated.');
+            },
+            error: () => this.showMessage('Student could not be inactivated.')
+          });
+      }
+    );
+  }
+
+  protected createUser(): void {
+    this.viewingUser.set(null);
+    this.editingUserId.set(null);
+    this.userForm.enable();
+    this.userForm.reset({ fullName: '', email: '', role: 'Student' });
+    this.userModalMode.set('create');
+  }
+
   protected editUser(user: UserDashboardItem): void {
+    this.viewingUser.set(user);
     this.editingUserId.set(user.id);
+    this.userForm.enable();
     this.userForm.setValue({
       fullName: user.fullName,
       email: user.email,
       role: user.role
     });
+    this.userModalMode.set('edit');
+  }
+
+  protected viewUser(user: UserDashboardItem): void {
+    this.viewingUser.set(user);
+    this.editingUserId.set(null);
+    this.userForm.setValue({
+      fullName: user.fullName,
+      email: user.email,
+      role: user.role
+    });
+    this.userForm.disable();
+    this.userModalMode.set('view');
   }
 
   protected resetUserForm(): void {
     this.editingUserId.set(null);
+    this.viewingUser.set(null);
+    this.userModalMode.set(null);
+    this.userForm.enable();
     this.userForm.reset({ fullName: '', email: '', role: 'Student' });
   }
 
@@ -201,7 +355,8 @@ export class App {
       ? this.api.updateUser(this.editingUserId()!, request)
       : this.api.createUser(request);
 
-    operation.subscribe({
+    this.isSaving.set(true);
+    operation.pipe(finalize(() => this.isSaving.set(false))).subscribe({
       next: dashboard => {
         this.setDashboard(dashboard);
         this.resetUserForm();
@@ -212,7 +367,23 @@ export class App {
   }
 
   protected setUserActive(user: UserDashboardItem, isActive: boolean): void {
-    this.api.setUserActive(user.id, isActive).subscribe({
+    if (!isActive) {
+      this.requestConfirmation(
+        'Deactivate account?',
+        `Are you sure you want to deactivate ${user.fullName}?`,
+        () => this.setUserActiveConfirmed(user, false)
+      );
+      return;
+    }
+
+    this.setUserActiveConfirmed(user, isActive);
+  }
+
+  private setUserActiveConfirmed(user: UserDashboardItem, isActive: boolean): void {
+    this.isSaving.set(true);
+    this.api.setUserActive(user.id, isActive)
+      .pipe(finalize(() => this.isSaving.set(false)))
+      .subscribe({
       next: dashboard => {
         this.setDashboard(dashboard);
         this.showMessage(isActive ? this.text().messages.accountActivated : this.text().messages.accountDeactivated);
@@ -221,19 +392,57 @@ export class App {
     });
   }
 
+  protected resetUserPassword(user: UserDashboardItem): void {
+    this.isSaving.set(true);
+    this.api.resetUserPassword(user.id)
+      .pipe(finalize(() => this.isSaving.set(false)))
+      .subscribe({
+        next: dashboard => {
+          this.setDashboard(dashboard);
+          this.showMessage('Temporary password email sent.');
+        },
+        error: () => this.showMessage('Password reset could not be sent.')
+      });
+  }
+
+  protected createBelt(): void {
+    this.viewingBelt.set(null);
+    this.resetBeltForm();
+    this.beltModalMode.set('create');
+  }
+
   protected editBelt(rank: RankDashboardItem): void {
+    this.viewingBelt.set(rank);
     this.editingBeltId.set(rank.id);
+    this.beltForm.enable();
     this.beltForm.setValue({
       name: rank.name,
       sortOrder: rank.sortOrder,
       beltColor: rank.beltColor,
       requiredAttendanceCount: rank.requiredAttendanceCount
     });
+    this.beltModalMode.set('edit');
+  }
+
+  protected viewBelt(rank: RankDashboardItem): void {
+    this.viewingBelt.set(rank);
+    this.editingBeltId.set(null);
+    this.beltForm.setValue({
+      name: rank.name,
+      sortOrder: rank.sortOrder,
+      beltColor: rank.beltColor,
+      requiredAttendanceCount: rank.requiredAttendanceCount
+    });
+    this.beltForm.disable();
+    this.beltModalMode.set('view');
   }
 
   protected resetBeltForm(): void {
     const nextOrder = (this.dashboard()?.ranks.length ?? 0) + 1;
     this.editingBeltId.set(null);
+    this.viewingBelt.set(null);
+    this.beltModalMode.set(null);
+    this.beltForm.enable();
     this.beltForm.reset({
       name: '',
       sortOrder: nextOrder,
@@ -253,7 +462,8 @@ export class App {
       ? this.api.updateBelt(this.editingBeltId()!, request)
       : this.api.createBelt(request);
 
-    operation.subscribe({
+    this.isSaving.set(true);
+    operation.pipe(finalize(() => this.isSaving.set(false))).subscribe({
       next: dashboard => {
         this.setDashboard(dashboard);
         this.resetBeltForm();
@@ -264,7 +474,18 @@ export class App {
   }
 
   protected deleteBelt(rank: RankDashboardItem): void {
-    this.api.deleteBelt(rank.id).subscribe({
+    this.requestConfirmation(
+      'Delete rank?',
+      `Are you sure you want to delete ${rank.name}?`,
+      () => this.deleteBeltConfirmed(rank)
+    );
+  }
+
+  private deleteBeltConfirmed(rank: RankDashboardItem): void {
+    this.isSaving.set(true);
+    this.api.deleteBelt(rank.id)
+      .pipe(finalize(() => this.isSaving.set(false)))
+      .subscribe({
       next: dashboard => {
         this.setDashboard(dashboard);
         this.showMessage(this.text().messages.beltDeleted);
@@ -273,18 +494,43 @@ export class App {
     });
   }
 
+  protected createEvent(): void {
+    this.viewingEvent.set(null);
+    this.resetEventForm();
+    this.eventModalMode.set('create');
+  }
+
   protected editEvent(event: AcademyEventDashboardItem): void {
+    this.viewingEvent.set(event);
     this.editingEventId.set(event.id);
+    this.eventForm.enable();
     this.eventForm.setValue({
       title: event.title,
       startsAt: event.startsAt,
       location: event.location,
       description: event.description
     });
+    this.eventModalMode.set('edit');
+  }
+
+  protected viewEvent(event: AcademyEventDashboardItem): void {
+    this.viewingEvent.set(event);
+    this.editingEventId.set(null);
+    this.eventForm.setValue({
+      title: event.title,
+      startsAt: event.startsAt,
+      location: event.location,
+      description: event.description
+    });
+    this.eventForm.disable();
+    this.eventModalMode.set('view');
   }
 
   protected resetEventForm(): void {
     this.editingEventId.set(null);
+    this.viewingEvent.set(null);
+    this.eventModalMode.set(null);
+    this.eventForm.enable();
     this.eventForm.reset({
       title: '',
       startsAt: this.toDateInputValue(new Date()),
@@ -304,7 +550,8 @@ export class App {
       ? this.api.updateEvent(this.editingEventId()!, request)
       : this.api.createEvent(request);
 
-    operation.subscribe({
+    this.isSaving.set(true);
+    operation.pipe(finalize(() => this.isSaving.set(false))).subscribe({
       next: dashboard => {
         this.setDashboard(dashboard);
         this.resetEventForm();
@@ -315,13 +562,34 @@ export class App {
   }
 
   protected deleteEvent(event: AcademyEventDashboardItem): void {
-    this.api.deleteEvent(event.id).subscribe({
+    this.requestConfirmation(
+      'Delete event?',
+      `Are you sure you want to delete ${event.title}?`,
+      () => this.deleteEventConfirmed(event)
+    );
+  }
+
+  private deleteEventConfirmed(event: AcademyEventDashboardItem): void {
+    this.isSaving.set(true);
+    this.api.deleteEvent(event.id)
+      .pipe(finalize(() => this.isSaving.set(false)))
+      .subscribe({
       next: dashboard => {
         this.setDashboard(dashboard);
         this.showMessage(this.text().messages.eventDeleted);
       },
       error: () => this.showMessage(this.text().messages.eventDeleteFailed)
     });
+  }
+
+  protected closeConfirmation(): void {
+    this.confirmation.set(null);
+  }
+
+  protected confirmAction(): void {
+    const confirmation = this.confirmation();
+    this.confirmation.set(null);
+    confirmation?.confirm();
   }
 
   protected trendHeight(presentCount: number): number {
@@ -405,6 +673,26 @@ export class App {
     return location || this.text().management.academyFallback;
   }
 
+  protected activeUsers(users: UserDashboardItem[]): UserDashboardItem[] {
+    return users.filter(user => user.isActive && (user.role === 'Student' || user.role === 'Teacher'));
+  }
+
+  protected activeEvents(events: AcademyEventDashboardItem[]): AcademyEventDashboardItem[] {
+    return events.filter(event => event.isActive);
+  }
+
+  protected modalTitle(mode: CrudModalMode | null, entity: string): string {
+    if (mode === 'view') {
+      return `${entity} details`;
+    }
+
+    if (mode === 'edit') {
+      return `Edit ${entity}`;
+    }
+
+    return `Add ${entity}`;
+  }
+
   protected progressText(student: StudentDashboardItem): string {
     if (!student.nextRankName) {
       return this.text().students.topRank;
@@ -419,7 +707,10 @@ export class App {
   private loadDashboard(): void {
     this.isLoading.set(true);
     this.api.getDashboard()
-      .pipe(finalize(() => this.isLoading.set(false)))
+      .pipe(finalize(() => {
+        this.isLoading.set(false);
+        this.isRouteLoading.set(false);
+      }))
       .subscribe({
         next: dashboard => this.setDashboard(dashboard),
         error: () => this.showMessage(this.text().messages.dashboardUnavailable)
@@ -438,6 +729,27 @@ export class App {
     }
   }
 
+  private setActiveScreenFromUrl(url: string): void {
+    const path = url.split('?')[0].split('#')[0].replace(/^\/+/, '');
+    const screen = (path || 'dashboard').split('/')[0] as AppScreen;
+    const knownScreens: AppScreen[] = ['dashboard', 'students', 'attendance', 'ranks', 'accounts', 'belts', 'events'];
+
+    this.activeScreen.set(knownScreens.includes(screen) ? screen : 'dashboard');
+  }
+
+  private syncMobileViewport(): void {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    this.isMobileViewport.set(isMobile);
+
+    if (!isMobile) {
+      this.isMobileMenuOpen.set(false);
+    }
+  }
+
   private setLocaleValue(locale: LocaleCode): void {
     this.locale.set(locale);
     document.documentElement.lang = locale;
@@ -446,9 +758,21 @@ export class App {
   private showMessage(message: string): void {
     this.snackBar.open(message, this.text().actions.close, { duration: 2600 });
   }
+
+  private requestConfirmation(title: string, message: string, confirm: () => void): void {
+    this.confirmation.set({ title, message, confirm });
+  }
 }
 
 type LocaleCode = 'pt-BR' | 'pt-PT' | 'es-ES' | 'en-US';
+type AppScreen = 'dashboard' | 'students' | 'attendance' | 'ranks' | 'accounts' | 'belts' | 'events';
+type CrudModalMode = 'create' | 'edit' | 'view';
+
+interface ConfirmationRequest {
+  title: string;
+  message: string;
+  confirm: () => void;
+}
 
 interface LanguageOption {
   code: LocaleCode;
@@ -624,7 +948,7 @@ const translations = {
       dashboard: 'Painel',
       students: 'Alunos',
       attendance: 'Presenças',
-      ranks: 'Faixas',
+      ranks: 'Graduações',
       accounts: 'Contas',
       belts: 'Faixas',
       events: 'Eventos'
@@ -669,7 +993,7 @@ const translations = {
       recentLog: 'Registro recente'
     },
     ranksSection: {
-      label: 'Sistema de faixas',
+      label: 'Sistema de graduações',
       progression: 'Progressão',
       required: '{count} créditos de presença necessários'
     },
@@ -788,7 +1112,7 @@ const translations = {
       attendance: 'Presenças',
       ranks: 'Graduações',
       accounts: 'Contas',
-      belts: 'Graduações',
+      belts: 'Cintos',
       events: 'Eventos'
     },
     header: {
@@ -948,9 +1272,9 @@ const translations = {
       dashboard: 'Panel',
       students: 'Alumnos',
       attendance: 'Asistencia',
-      ranks: 'Rangos',
+      ranks: 'Grados',
       accounts: 'Cuentas',
-      belts: 'Rangos',
+      belts: 'Cinturones',
       events: 'Eventos'
     },
     header: {
@@ -993,7 +1317,7 @@ const translations = {
       recentLog: 'Registro reciente'
     },
     ranksSection: {
-      label: 'Sistema de rangos',
+      label: 'Sistema de grados',
       progression: 'Progresión',
       required: '{count} créditos de asistencia requeridos'
     },
@@ -1007,7 +1331,7 @@ const translations = {
       },
       table: {
         student: 'Alumno',
-        rank: 'Rango',
+        rank: 'Grado',
         progress: 'Progreso',
         finance: 'Finanzas',
         actions: 'Acciones'
@@ -1015,7 +1339,7 @@ const translations = {
       yearsOld: '{age} años',
       enrolled: 'inscrito el {date}',
       progressToRank: '{count}/{required} para {rank}',
-      topRank: 'Rango máximo configurado'
+      topRank: 'Grado máximo configurado'
     },
     attendanceStatus: {
       Present: 'Presente',
@@ -1061,7 +1385,7 @@ const translations = {
       active: 'Activo',
       inactive: 'Inactivo',
       academySystem: 'Sistema de la escuela',
-      belts: 'Rangos',
+      belts: 'Cinturones',
       name: 'Nombre',
       order: 'Orden',
       requiredAttendance: 'Asistencias necesarias',

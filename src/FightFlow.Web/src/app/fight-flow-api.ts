@@ -22,6 +22,10 @@ export class FightFlowApi {
     return this.http.post<DashboardResponse>(`/api/students/${studentId}/promote`, {});
   }
 
+  public deactivateStudent(studentId: string): Observable<DashboardResponse> {
+    return this.http.post<DashboardResponse>(`/api/students/${studentId}/deactivate`, {});
+  }
+
   public createUser(request: UserSaveRequest): Observable<DashboardResponse> {
     return this.http.post<DashboardResponse>('/api/users', request);
   }
@@ -33,6 +37,10 @@ export class FightFlowApi {
   public setUserActive(userId: string, isActive: boolean): Observable<DashboardResponse> {
     const action = isActive ? 'activate' : 'deactivate';
     return this.http.post<DashboardResponse>(`/api/users/${userId}/${action}`, {});
+  }
+
+  public resetUserPassword(userId: string): Observable<DashboardResponse> {
+    return this.http.post<DashboardResponse>(`/api/users/${userId}/reset-password`, {});
   }
 
   public createBelt(request: BeltSaveRequest): Observable<DashboardResponse> {

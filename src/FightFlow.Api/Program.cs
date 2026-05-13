@@ -59,6 +59,15 @@ api.MapPost("/students/{studentId:guid}/promote", (FightFlowStore store, Guid st
 })
 .WithName("PromoteStudent");
 
+api.MapPost("/students/{studentId:guid}/deactivate", (FightFlowStore store, Guid studentId) =>
+{
+    StudentActionResult result = store.DeactivateStudent(studentId);
+    return result.Success
+        ? Results.Ok(result.Dashboard)
+        : Results.BadRequest(new ProblemDetails(result.Message));
+})
+.WithName("DeactivateStudent");
+
 api.MapPost("/users", (FightFlowStore store, UserSaveRequest request) => ToResult(store.CreateUser(request)))
     .WithName("CreateUser");
 
@@ -70,6 +79,9 @@ api.MapPost("/users/{userId:guid}/deactivate", (FightFlowStore store, Guid userI
 
 api.MapPost("/users/{userId:guid}/activate", (FightFlowStore store, Guid userId) => ToResult(store.ActivateUser(userId)))
     .WithName("ActivateUser");
+
+api.MapPost("/users/{userId:guid}/reset-password", (FightFlowStore store, Guid userId) => ToResult(store.ResetUserPassword(userId)))
+    .WithName("ResetUserPassword");
 
 api.MapPost("/belts", (FightFlowStore store, BeltSaveRequest request) => ToResult(store.CreateBelt(request)))
     .WithName("CreateBelt");
@@ -235,6 +247,21 @@ internal sealed class FightFlowStore
         }
     }
 
+    public StudentActionResult DeactivateStudent(Guid studentId)
+    {
+        lock (sync)
+        {
+            StudentState? student = students.FirstOrDefault(item => item.Id == studentId);
+            if (student is null)
+            {
+                return StudentActionResult.Fail("Student was not found.");
+            }
+
+            student.IsActive = false;
+            return StudentActionResult.Ok(BuildDashboard());
+        }
+    }
+
     public StoreActionResult CreateUser(UserSaveRequest request)
     {
         lock (sync)
@@ -318,6 +345,20 @@ internal sealed class FightFlowStore
             }
 
             user.IsActive = true;
+            return StoreActionResult.Ok(BuildDashboard());
+        }
+    }
+
+    public StoreActionResult ResetUserPassword(Guid userId)
+    {
+        lock (sync)
+        {
+            UserState? user = users.FirstOrDefault(item => item.Id == userId);
+            if (user is null)
+            {
+                return StoreActionResult.Fail("User was not found.");
+            }
+
             return StoreActionResult.Ok(BuildDashboard());
         }
     }
@@ -948,7 +989,7 @@ internal sealed class StudentState(
 
     public string FinancialStatus { get; set; } = financialStatus;
 
-    public bool IsActive { get; } = isActive;
+    public bool IsActive { get; set; } = isActive;
 }
 
 internal sealed record AttendanceState(
